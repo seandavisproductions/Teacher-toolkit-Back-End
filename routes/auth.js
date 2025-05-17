@@ -1,4 +1,8 @@
+const express = require("express");
+const router = express.Router();
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const Teacher = require("../models/Teacher");
 
 // Login a teacher
 router.post("/login", async (req, res) => {
@@ -16,3 +20,5 @@ router.post("/login", async (req, res) => {
     res.status(400).json({ error: error.message });
   }
 });
+
+module.exports = router;
