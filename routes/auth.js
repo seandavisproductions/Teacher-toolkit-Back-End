@@ -1,21 +1,19 @@
 const express = require("express");
-const router = express.Router();
-const Teacher = require("../models/Teacher");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+const Teacher = require("../models/Teacher");
 
-// Login a teacher
-router.post("/login", async (req, res) => {
+const router = express.Router();
+
+// Register a teacher
+router.post("/register", async (req, res) => {
   try {
     const { username, password } = req.body;
-    const teacher = await Teacher.findOne({ username });
-    if (!teacher) return res.status(404).json({ error: "User not found" });
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const isMatch = await bcrypt.compare(password, teacher.password);
-    if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
+    const newTeacher = new Teacher({ username, password: hashedPassword });
+    await newTeacher.save();
 
-    const token = jwt.sign({ id: teacher._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-    res.json({ token, username: teacher.username });
+    res.status(201).json({ message: "Teacher registered successfully!" });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
