@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
 const Teacher = require("../models/Teacher");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 // Login a teacher
 router.post("/login", async (req, res) => {
