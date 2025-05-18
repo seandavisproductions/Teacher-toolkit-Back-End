@@ -1,6 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const Teacher = require("../models/Teacher");
+module.exports = router;
 
 const router = express.Router();
 
@@ -31,12 +32,14 @@ router.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, teacher.password);
     if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
-    const token = jwt.sign({ id: teacher._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-    res.json({ token, username: teacher.username });
+    const token = jwt.sign(
+  { id: teacher._id, sessionId: teacher.sessionId },
+  process.env.JWT_SECRET,
+  { expiresIn: "1h" }
+);
+
+    res.json({ token, sessionId: teacher.sessionId, username: teacher.username });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
-
-
-module.exports = router;
