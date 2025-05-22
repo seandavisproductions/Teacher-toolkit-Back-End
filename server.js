@@ -53,7 +53,7 @@ io.on("connection", (socket) => {
   });
 
   // Broadcast session updates to everyone in the same room
-  socket.on("updateSession", ({ sessionCode, newData }) => {
+  socket.on("sessionUpdate", ({ sessionCode, newData }) => {
     io.to(sessionCode).emit("sessionUpdate", { sessionCode, ...newData });
     console.log(`Room ${sessionCode} updated with:`, newData);
   });
