@@ -18,6 +18,8 @@ connectDB();
 // Routes
 const authRoutes = require("./routes/auth");
 app.use("/auth", authRoutes);
+const sessionRoutes = require("./routes/generateSessionCode");
+app.use("/session", sessionRoutes);
 
 // Create HTTP server and Socket.IO server attached to it
 const http = require("http");
