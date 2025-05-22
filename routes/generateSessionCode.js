@@ -6,6 +6,7 @@ const router = express.Router();
 // Create or update a session code for a teacher
 router.post("/generate", async (req, res) => {
   try {
+    console.log("/session/generate POST body:", req.body); // Debug log
     const { code, teacherId } = req.body;
     if (!code || !teacherId) return res.status(400).json({ error: "Missing code or teacherId" });
 
@@ -17,6 +18,7 @@ router.post("/generate", async (req, res) => {
     await session.save();
     res.status(201).json({ message: "Session code created", session });
   } catch (error) {
+    console.error("Error saving session code:", error); // Debug log
     res.status(400).json({ error: error.message });
   }
 });
