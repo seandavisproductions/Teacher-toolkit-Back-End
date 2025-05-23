@@ -6,6 +6,14 @@ const session = require("express-session");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 
+const express = require("express");
+
+const authRoutes = require("./routes/authRoutes");
+app.use("/auth", authRoutes);
+
+app.listen(process.env.PORT || 5000, () => console.log("Server running"));
+
+
 
 // Create Express app BEFORE creating the HTTP server
 const app = express();
@@ -20,7 +28,7 @@ app.use(cors({
 connectDB();
 
 // Routes
-const authRoutes = require("./routes/auth");
+const authRoutes = require("./routes/authRoutes");
 app.use("/auth", authRoutes);
 const sessionRoutes = require("./routes/generateSessionCode");
 app.use("/session", sessionRoutes);
