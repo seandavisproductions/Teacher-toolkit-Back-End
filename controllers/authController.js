@@ -2,7 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const Teacher = require("../models/Teacher");
 const router = express.Router();
-module.exports = router;
+
 
 
 // Register a teacher
@@ -44,3 +44,5 @@ router.post("/login", async (req, res) => {
         res.status(400).json({ error: error.message });
     }
 });
+
+module.exports = { login, register };
