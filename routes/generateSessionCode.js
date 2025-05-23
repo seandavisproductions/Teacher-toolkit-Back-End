@@ -10,14 +10,14 @@ router.post("/generate", async (req, res) => {
   }
   
   // Generate a new random session code on the server side
-  const newCode = Math.random().toString(36).substr(2, 6).toUpperCase();
+  const sessionCode = Math.random().toString(36).substr(2, 6).toUpperCase();
 
   try {
     // Optionally, delete any previous active session for the teacher
     await Session.findOneAndDelete({ teacher: sessionId });
     
     // Create a new session document with the generated code and sessionId.
-    const session = new Session({ code: newCode, teacher: sessionId });
+    const session = new Session({ code: sessionCode, teacher: sessionId });
     await session.save();
     
     // Respond with the new session document. 
