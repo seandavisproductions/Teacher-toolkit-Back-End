@@ -2,6 +2,10 @@ require("dotenv").config();
 const express = require("express");
 const connectDB = require("./config/db");
 const cors = require("cors");
+const session = require("express-session");
+const passport = require("passport");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
+
 
 // Create Express app BEFORE creating the HTTP server
 const app = express();
@@ -69,3 +73,74 @@ io.on("connection", (socket) => {
 // Start the HTTP server listening with Socket.IO handling the sockets
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT} with WebSockets!`));
+
+
+// Configure express-session middleware
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "SOME_SECRET", // set a strong secret in your .env file
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+// Initialize Passport middleware
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Configure Passport to use Google strategy
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID, // your Google client ID
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET, // your Google client secret
+      callbackURL: "/auth/google/callback",
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      // In a production app, use profile info (like profile.id) to check if the user exists in your DB.
+      // For example, if not exists, you could create the user.
+      // Then return done(null, user);
+      // For this example, we'll use the profile object directly.
+      return done(null, profile);
+    }
+  )
+);
+
+// Serialize the user for the session
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+// Deserialize the user from the session
+passport.deserializeUser((id, done) => {
+  // In a production app, fetch the user from your DB based on the id.
+  // Here, we'll assume the user object is stored in the session.
+  done(null, { id });
+});
+
+// Route to initiate Google authentication
+app.get(
+  "/auth/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
+
+// Callback route that Google will redirect to after authorization
+app.get(
+  "/auth/google/callback",
+  passport.authenticate("google", { failureRedirect: "/login" }),
+  (req, res) => {
+    // Successful authentication.
+    // You can save the teacher's information into your session or JWT here.
+    res.redirect("https://seandavisproductions.github.io/teacher-tools/"); // redirect to your dashboard or teacher view
+  }
+);
+
+// A simple route to test if user is authenticated
+app.get("/profile", (req, res) => {
+  if (req.isAuthenticated()) {
+    res.json({ user: req.user });
+  } else {
+    res.status(401).json({ error: "Not authenticated" });
+  }
+});
+
