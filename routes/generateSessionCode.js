@@ -1,23 +1,30 @@
 const express = require("express");
 const router = express.Router();
-const Session = require("../models/Session"); // Ensure the path is correct
+const Session = require("../models/Session");
 
-// POST /generate
+// POST /session/generate
 router.post("/generate", async (req, res) => {
-  const { code, teacherId } = req.body;
-  if (!code || !teacherId) {
-    return res.status(400).json({ error: "Missing code or teacherId" });
+  const { teacherId } = req.body;
+  if (!teacherId) {
+    return res.status(400).json({ error: "Missing teacherId" });
   }
+  
+  // Generate a new random session code on the server side
+  const newCode = Math.random().toString(36).substr(2, 6).toUpperCase();
 
   try {
-    // Optionally remove any previous session for this teacher so there's only one active session
+    // Optionally, delete any previous active session for the teacher
     await Session.findOneAndDelete({ teacher: teacherId });
-
-    // Create a new session entry with the given code and teacher reference
-    const newSession = await Session.create({ code, teacher: teacherId });
-    return res.status(200).json({ success: true, session: newSession });
+    
+    // Create a new session document with the generated code and teacherId.
+    const session = new Session({ code: newCode, teacher: teacherId });
+    await session.save();
+    
+    // Respond with the new session document. 
+    // The frontend can then read session.code to display it.
+    return res.status(200).json({ success: true, session });
   } catch (error) {
-    console.error("Error generating session code:", error);
+    console.error("Error generating session:", error);
     return res.status(500).json({ error: "Server error" });
   }
 });
