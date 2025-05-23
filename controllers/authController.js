@@ -6,7 +6,7 @@ const router = express.Router();
 
 
 // Register a teacher
-router.post("/register", async (req, res) => {
+const register = async (req, res) => {
     try {
         const { username, password } = req.body;
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -23,7 +23,7 @@ router.post("/register", async (req, res) => {
 const jwt = require("jsonwebtoken");
 
 // Login a teacher
-router.post("/login", async (req, res) => {
+const login = async (req, res) => {
     try {
         const { username, password } = req.body;
         const teacher = await Teacher.findOne({ username });
@@ -46,4 +46,4 @@ router.post("/login", async (req, res) => {
 });
 
 // At the end of authController.js:
-module.exports = router;
+module.exports = { login, register };
