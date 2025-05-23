@@ -4,9 +4,9 @@ const Session = require("../models/Session");
 
 // POST /session/generate
 router.post("/generate", async (req, res) => {
-  const { sessionId } = req.body;
-  if (!sessionId) {
-    return res.status(400).json({ error: "Missing sessionId" });
+  const { teacherId } = req.body;
+  if (!teacherId) {
+    return res.status(400).json({ error: "Missing teacherId" });
   }
   
   // Generate a new random session code on the server side
@@ -14,10 +14,10 @@ router.post("/generate", async (req, res) => {
 
   try {
     // Optionally, delete any previous active session for the teacher
-    await Session.findOneAndDelete({ teacher: sessionId });
+    await Session.findOneAndDelete({ teacher: teacherId });
     
-    // Create a new session document with the generated code and sessionId.
-    const session = new Session({ code: sessionCode, teacher: sessionId });
+    // Create a new session document with the generated code and teacherId.
+    const session = new Session({ code: sessionCode, teacher: teacherId });
     await session.save();
     
     // Respond with the new session document. 

@@ -34,15 +34,16 @@ const login = async (req, res) => {
 
         const jwt = require("jsonwebtoken");
         const token = jwt.sign(
-            { id: teacher._id, sessionId: teacher.sessionId },
+            { id: teacher._id, teacherId: teacher.teacherId },
             process.env.JWT_SECRET,
             { expiresIn: "1h" }
         );
 
-        res.json({ token, sessionId: teacher.sessionId, username: teacher.username });
-    } catch (error) {
-        res.status(400).json({ error: error.message });
-    }
+      // Return the teacher's _id as teacherId in the response
+    res.json({ token, teacherId: teacher._id, username: teacher.username });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 };
 
 // At the end of authController.js:
