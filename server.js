@@ -26,7 +26,6 @@ app.use(cors({
 connectDB();
 
 // Routes
-const authRoutes = require("./routes/authRoutes");
 app.use("/auth", authRoutes);
 const sessionRoutes = require("./routes/generateSessionCode");
 app.use("/session", sessionRoutes);
