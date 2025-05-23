@@ -1,36 +1,24 @@
 const express = require("express");
-const Session = require("../models/Session");
-const Teacher = require("../models/Teacher");
 const router = express.Router();
+const Session = require("./models/session"); // Ensure the path is correct
 
-// Create or update a session code for a teacher
+// POST /generate
 router.post("/generate", async (req, res) => {
-  try {
-    console.log("/session/generate POST body:", req.body); // Debug log
-    const { code, teacherId } = req.body;
-    if (!code || !teacherId) return res.status(400).json({ error: "Missing code or teacherId" });
-
-    // Remove any previous session for this teacher (one active session per teacher)
-    await Session.deleteMany({ teacher: teacherId });
-
-    // Create new session
-    const session = new Session({ code, teacher: teacherId });
-    await session.save();
-    res.status(201).json({ message: "Session code created", session });
-  } catch (error) {
-    console.error("Error saving session code:", error); // Debug log
-    res.status(400).json({ error: error.message });
+  const { code, teacherId } = req.body;
+  if (!code || !teacherId) {
+    return res.status(400).json({ error: "Missing code or teacherId" });
   }
-});
 
-// Validate a session code (for students to join)
-router.get("/validate/:code", async (req, res) => {
   try {
-    const session = await Session.findOne({ code: req.params.code });
-    if (!session) return res.status(404).json({ error: "Session code not found" });
-    res.json({ valid: true, teacher: session.teacher });
+    // Optionally remove any previous session for this teacher so there's only one active session
+    await Session.findOneAndDelete({ teacher: teacherId });
+
+    // Create a new session entry with the given code and teacher reference
+    const newSession = await Session.create({ code, teacher: teacherId });
+    return res.status(200).json({ success: true, session: newSession });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error("Error generating session code:", error);
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
