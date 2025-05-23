@@ -6,10 +6,10 @@ const session = require("express-session");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 
-// Create the Express app
+// Create the Express app first.
 const app = express();
 
-// Setup middlewares
+// Setup middleware
 app.use(express.json());
 app.use(
   cors({
@@ -45,7 +45,7 @@ passport.use(
         process.env.GOOGLE_CALLBACK_URL || "http://localhost:5000/auth/google/callback",
     },
     async (accessToken, refreshToken, profile, done) => {
-      // You can look up or create a user in your database here.
+      // Look up or create a user in the database here.
       return done(null, profile);
     }
   )
@@ -55,23 +55,21 @@ passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 passport.deserializeUser((id, done) => {
-  // In production, retrieve the user from your database
+  // Retrieve the user from your database in production.
   done(null, { id });
 });
 
-// Now mount your routes AFTER the app is fully initialized
+// Now that the app is fully initialized, mount your route modules.
 const authRoutes = require("./routes/authRoutes");
 const sessionRoutes = require("./routes/generateSessionCode");
-
 app.use("/auth", authRoutes);
 app.use("/session", sessionRoutes);
 
-// Define OAuth routes if needed
+// Define OAuth routes (ensure these handlers are proper functions)
 app.get(
   "/auth/google",
   passport.authenticate("google", { scope: ["profile", "email"] })
 );
-
 app.get(
   "/auth/google/callback",
   passport.authenticate("google", { failureRedirect: "/login" }),
@@ -80,15 +78,14 @@ app.get(
   }
 );
 
-// Setup HTTP server and Socket.IO
+// Setup HTTP server and attach Socket.IO
 const http = require("http");
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(server);
 
-// (Socket.IO handlers and additional server functionality go here)
+// (Socket.IO handlers and additional functionality go here)
 
-// Start the server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () =>
   console.log(`🚀 Server running on port ${PORT} with WebSockets!`)
