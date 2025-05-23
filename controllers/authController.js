@@ -45,4 +45,5 @@ router.post("/login", async (req, res) => {
     }
 });
 
-module.exports = { login, register };
+// At the end of authController.js:
+module.exports = router;
