@@ -94,7 +94,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID, // your Google client ID
       clientSecret: process.env.GOOGLE_CLIENT_SECRET, // your Google client secret
-      callbackURL: process.env.GOOGLE_CALLBACK_URL || "http://localhost:5000/auth/google/callback",
+      callbackURL: process.env.GOOGLE_CALLBACK_URL || "http://localhost:5000/auth/google/callback"
     },
     async (accessToken, refreshToken, profile, done) => {
       // In a production app, use profile info (like profile.id) to check if the user exists in your DB.
