@@ -7,8 +7,6 @@ const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 
 const authRoutes = require("./routes/authRoutes");
-app.use("/auth", authRoutes);
-
 app.listen(process.env.PORT || 5000, () => console.log("Server running"));
 
 
