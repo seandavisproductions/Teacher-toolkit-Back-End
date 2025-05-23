@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const Session = require("./models/session"); // Ensure the path is correct
+const Session = require("../models/Session"); // Ensure the path is correct
 
 // POST /generate
 router.post("/generate", async (req, res) => {
