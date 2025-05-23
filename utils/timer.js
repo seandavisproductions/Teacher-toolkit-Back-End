@@ -1,54 +1,72 @@
-// Object to hold timer information for unique sessions.
-const sessionTimers = {};
+require("dotenv").config();
+const express = require("express");
+const http = require("http");
+const socketIo = require("socket.io");
 
-/**
- * Starts a countdown for a given session.
- * @param {string} sessionCode - The code/identifier for the session.
- * @param {number} duration - The countdown duration in seconds.
- * @param {object} io - The Socket.IO instance to emit timer updates.
- * @returns {number} The initial timeLeft.
- */
-function startCountdown(sessionCode, duration, io) {
-  // Clear existing timer for this session if any.
-  if (sessionTimers[sessionCode] && sessionTimers[sessionCode].interval) {
-    clearInterval(sessionTimers[sessionCode].interval);
-  }
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: { origin: "*" }
+});
 
-  // Initialize the timer data.
-  sessionTimers[sessionCode] = {
-    timeLeft: duration,
-    interval: setInterval(() => {
-      // Decrement the countdown.
-      sessionTimers[sessionCode].timeLeft -= 1;
+// Object to hold active countdown timers by room
+const countdownTimers = {};
 
-      // Emit an update to all clients in the session's room.
-      io.to(sessionCode).emit("countdownUpdate", {
-        timeLeft: sessionTimers[sessionCode].timeLeft,
-        status: sessionTimers[sessionCode].timeLeft <= 0 ? "finished" : "running",
-      });
+io.on("connection", (socket) => {
+  console.log("Client connected:", socket.id);
 
-      // When the timer reaches zero, stop the countdown.
-      if (sessionTimers[sessionCode].timeLeft <= 0) {
-        clearInterval(sessionTimers[sessionCode].interval);
+  // (Optional) Let clients join a room based on teacher/session info
+  socket.on("joinTeacherRoom", ({ teacherId, sessionCode }) => {
+    const room = `${teacherId}-${sessionCode}`;
+    socket.join(room);
+    console.log(`Socket ${socket.id} joined room: ${room}`);
+  });
+
+  // Teacher starts the countdown timer. The teacherId and sessionCode are used to build the room.
+  socket.on("startCountdown", ({ teacherId, sessionCode, timeLeft }) => {
+    const room = `${teacherId}-${sessionCode}`;
+    // Ensure the socket is in the proper room
+    socket.join(room);
+    
+    // Clear any existing timer for this room
+    if (countdownTimers[room]) {
+      clearInterval(countdownTimers[room]);
+      delete countdownTimers[room];
+    }
+
+    // Broadcast the starting time immediately
+    io.to(room).emit("countdownUpdate", { timeLeft });
+    
+    // Set up the interval to count down every second
+    countdownTimers[room] = setInterval(() => {
+      if (timeLeft > 0) {
+        timeLeft--;
+        io.to(room).emit("countdownUpdate", { timeLeft });
+      } else {
+        // Timer finished; clear the interval and notify clients.
+        clearInterval(countdownTimers[room]);
+        delete countdownTimers[room];
+        io.to(room).emit("countdownUpdate", { timeLeft: 0 });
       }
-    }, 1000),
-  };
+    }, 1000);
+  });
 
-  return sessionTimers[sessionCode].timeLeft;
-}
+  // Teacher stops the countdown timer
+  socket.on("stopCountdown", ({ teacherId, sessionCode }) => {
+    const room = `${teacherId}-${sessionCode}`;
+    if (countdownTimers[room]) {
+      clearInterval(countdownTimers[room]);
+      delete countdownTimers[room];
+      io.to(room).emit("countdownUpdate", { timeLeft: 0 });
+    }
+  });
 
-/**
- * Stops the countdown for a given session.
- * @param {string} sessionCode - The code/identifier for the session.
- * @returns {boolean} True if a timer was found and stopped; otherwise, false.
- */
-function stopCountdown(sessionCode) {
-  if (sessionTimers[sessionCode] && sessionTimers[sessionCode].interval) {
-    clearInterval(sessionTimers[sessionCode].interval);
-    delete sessionTimers[sessionCode];
-    return true;
-  }
-  return false;
-}
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
+});
 
-module.exports = { startCountdown, stopCountdown };
+const PORT = process.env.PORT || 4000;
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
