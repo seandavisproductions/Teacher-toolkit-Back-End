@@ -18,7 +18,7 @@ const register = async (req, res) => {
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
-});
+};
 
 const jwt = require("jsonwebtoken");
 
@@ -43,7 +43,7 @@ const login = async (req, res) => {
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
-});
+};
 
 // At the end of authController.js:
 module.exports = { login, register };
