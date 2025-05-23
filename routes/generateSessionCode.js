@@ -29,4 +29,26 @@ router.post("/generate", async (req, res) => {
   }
 });
 
+
+
+// POST /session/validate
+router.post("/validate", async (req, res) => {
+  const { sessionCode } = req.body;
+  if (!sessionCode) {
+    return res.status(400).json({ success: false, error: "Missing sessionCode" });
+  }
+  try {
+    // Find a session that matches the provided code
+    const session = await Session.findOne({ code: sessionCode });
+    if (!session) {
+      return res.status(401).json({ success: false, error: "Invalid session code" });
+    }
+    // If needed, you can perform additional checks here
+    res.status(200).json({ success: true, session });
+  } catch (error) {
+    console.error("Validation error:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
 module.exports = router;
