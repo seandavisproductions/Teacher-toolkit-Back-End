@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express = require("express");
+const socketIo = require("socket.io");
 const app = express(); // <--- Add this line
 const connectDB = require("./config/db");
 const cors = require("cors");
@@ -18,8 +19,25 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"], 
   }));
 
+
+// Set up Socket.IO with CORS allowed for frontend
+const io = socketIo(server, {
+  cors: {
+    origin: "http://localhost:3000",  // Allow requests from your frontend
+    methods: ["GET", "POST"],
+  },
+});
+
+io.on("connection", (socket) => {
+  console.log("Client connected:", socket.id);
+});
+
+
 // Connect to MongoDB
 connectDB();
+
+
+
 
 // Configure express-session middleware
 app.use(
