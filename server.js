@@ -13,7 +13,7 @@ const { protect } = require("./middleware/authMiddleware");
 app.use(express.json());
 app.use(
   cors({ 
-    origin: ['http://localhost:3000', 'http://localhost:5000', 'https://admin.socket.io/'],
+    origin: ['https://teacher-toolkit-back-end.onrender.com:10000', 'https://admin.socket.io/', 'https://teacher-toolkit-back-end.onrender.com'],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"], 
   }));
