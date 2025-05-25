@@ -22,6 +22,7 @@ function attachTimer(server) {
     // Listen for countdown updates from teacher client.
     socket.on("countdownUpdate", ({ sessionCode, timeLeft }) => {
       // Broadcast the updated timeLeft to all clients in the session room.
+      console.log("Broadcasting countdown:", { sessionCode, timeLeft });
       io.to(sessionCode).emit("countdownUpdate", { timeLeft });
       console.log(`Broadcasting update for session ${sessionCode}: ${timeLeft} seconds remaining`);
     });
