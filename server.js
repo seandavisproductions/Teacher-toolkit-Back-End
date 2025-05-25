@@ -12,8 +12,8 @@ const { protect } = require("./middleware/authMiddleware");
 // Setup middleware
 app.use(express.json());
 app.use(
-  cors({ 
-    origin: ['https://teacher-toolkit-back-end.onrender.com:10000', 'https://admin.socket.io/', 'https://teacher-toolkit-back-end.onrender.com'],
+  cors(3000, { 
+    origin: ['http://localhost:3000/teacher-tools', 'https://admin.socket.io/', 'https://teacher-toolkit-back-end.onrender.com', 'https://seandavisproductions.github.io/teacher-tools/'],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"], 
   }));
