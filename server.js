@@ -5,11 +5,28 @@ const cors = require("cors");
 const session = require("express-session");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const { startCountdown, stopCountdown } = require("./utils/timer");
+const { getTimer, updateTimer } = require("./utils/timer"); // Import timer functions
 
-
+//Timer Syncronisation
 // Create the Express app first.
 const app = express();
+
+app.get("/timer/:sessionCode", (req, res) => {
+  res.json(getTimer(req.params.sessionCode));
+});
+
+app.post("/update-timer", (req, res) => {
+  const { sessionCode, timeLeft, isRunning } = req.body;
+  
+  if (!sessionCode) {
+    return res.status(400).json({ error: "Session code required" });
+  }
+  
+  updateTimer(sessionCode, timeLeft, isRunning);
+  res.json({ success: true });
+});
+
+
 
 // Setup middleware
 app.use(express.json());
