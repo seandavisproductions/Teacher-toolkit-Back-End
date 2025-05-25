@@ -26,7 +26,7 @@ app.use(
 // Set up Socket.IO with CORS allowed for frontend
 const io = socketIo(server, {
   cors: {
-    origin: "http://localhost:3000",  // Allow requests from your frontend
+    origin: "https://seandavisproductions.github.io",  // Allow requests from your frontend
     methods: ["GET", "POST"],
   },
 });
