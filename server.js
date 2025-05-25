@@ -13,7 +13,7 @@ const { protect } = require("./middleware/authMiddleware");
 app.use(express.json());
 app.use(
   cors( { 
-    origin: ['http://localhost:3000/teacher-tools', 'https://admin.socket.io/', 'https://teacher-toolkit-back-end.onrender.com', 'https://seandavisproductions.github.io/teacher-tools/'],
+    origin: ['http://localhost:3000/teacher-tools', 'https://admin.socket.io/', 'https://teacher-toolkit-back-end.onrender.com', 'https://seandavisproductions.github.io/teacher-tools/', 'http://localhost:3000/teacher-tools'],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"], 
   }));
