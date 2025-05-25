@@ -3,8 +3,6 @@ const jwt = require("jsonwebtoken");
 exports.protect = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
 
-  const cors = require('cors');
-app.use(cors({ origin: 'http://localhost:3000' }));
   if (!token) {
     return res.status(401).json({ error: "Not authorized, no token" });
   }
@@ -18,3 +16,4 @@ app.use(cors({ origin: 'http://localhost:3000' }));
   }
 };
 
+// No need to include CORS middleware here; place that configuration in your server setup.

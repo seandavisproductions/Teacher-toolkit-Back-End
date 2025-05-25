@@ -7,17 +7,16 @@ const session = require("express-session");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const { attachTimer } = require("./utils/timer"); // Import timer functions
-
+const { protect } = require("./middleware/authMiddleware");
 
 // Setup middleware
 app.use(express.json());
 app.use(
-  cors({
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+  cors({ 
+    origin: 'http://localhost:3000',
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"], 
+  }));
 
 // Connect to MongoDB
 connectDB();
