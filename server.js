@@ -9,6 +9,9 @@ const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const { attachTimer } = require("./utils/timer"); // Import timer functions
 const { protect } = require("./middleware/authMiddleware");
+const http = require("http");
+const server = http.createServer(app);
+
 
 // Setup middleware
 app.use(express.json());
@@ -98,7 +101,7 @@ app.get(
 
 // (Socket.IO handlers and additional functionality go here)
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 server.listen(PORT, () =>
   console.log(`🚀 Server running on port ${PORT} with WebSockets!`)
 );
