@@ -95,11 +95,6 @@ app.get(
   }
 );
 
-// Setup HTTP server and attach Socket.IO
-const http = require("http");
-const server = http.createServer(app);
-const { Server } = require("socket.io");
-const io = new Server(server);
 
 // (Socket.IO handlers and additional functionality go here)
 
