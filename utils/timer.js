@@ -1,39 +1,70 @@
 const socketIo = require("socket.io");
 require("dotenv").config();
 
-/**
- * Attaches Socket.IO for timer functionality to the provided HTTP server.
- * @param {http.Server} server - The HTTP server instance from your main server file.
- * @returns The Socket.IO instance.
- */
-function attachTimer(server) {
-  const io = socketIo(server, { cors: { origin: "*" } });
+// Store active timers per sessionCode in memory
+// NOTE: This data will be lost if the server restarts.
+const activeTimers = {}; // Keep this here for now, or move to timer.js
 
-  // When a client connects.
-  io.on("connection", (socket) => {
-    console.log("Client connected:", socket.id);
+io.on('connection', (socket) => {
+    console.log('A user connected:', socket.id);
 
-    // When a client joins a session room.
-    socket.on("joinSession", ({ sessionCode }) => {
-      socket.join(sessionCode);
-      console.log(`Socket ${socket.id} joined session: ${sessionCode}`);
+    socket.on('joinSession', (sessionCode) => {
+        socket.join(sessionCode);
+        console.log(`User ${socket.id} joined session room: ${sessionCode}`);
+
+        // Handle initial timer state sync
+        if (activeTimers[sessionCode]) {
+            let currentActualTimeLeft = activeTimers[sessionCode].timeLeft;
+            if (activeTimers[sessionCode].isRunning) {
+                const elapsedTime = Math.floor((Date.now() - activeTimers[sessionCode].startTime) / 1000);
+                currentActualTimeLeft = Math.max(0, activeTimers[sessionCode].timeLeft - elapsedTime);
+            }
+            socket.emit('timerUpdate', {
+                isRunning: activeTimers[sessionCode].isRunning && currentActualTimeLeft > 0,
+                timeLeft: currentActualTimeLeft
+            });
+        } else {
+            socket.emit('timerUpdate', { isRunning: false, timeLeft: 0 });
+        }
+
+        // <-- NEW: Call the objective handler for this socket/session
+        handleObjectiveEvents(socket, sessionCode);
+
+        // Call the timer handler for this socket/session
+        // (You would uncomment this when you create timer.js)
+        // handleTimerEvents(socket, sessionCode);
     });
 
-    // Listen for countdown updates from teacher client.
-    socket.on("countdownUpdate", ({ sessionCode, timeLeft }) => {
-      // Broadcast the updated timeLeft to all clients in the session room.
-      console.log("Broadcasting countdown:", { sessionCode, timeLeft });
-      io.to(sessionCode).emit("countdownUpdate", { timeLeft });
-      console.log(`Broadcasting update for session ${sessionCode}: ${timeLeft} seconds remaining`);
+    // --- Timer Event Listeners (Temporarily still here, will move to timer.js) ---
+    // Event for the teacher to start/update the timer
+    socket.on('startTimer', ({ sessionCode, isRunning, timeLeft }) => {
+        console.log(`Teacher in session ${sessionCode} started/updated timer:`, { isRunning, timeLeft });
+        activeTimers[sessionCode] = { isRunning, timeLeft, startTime: Date.now() };
+        io.to(sessionCode).emit('timerUpdate', { isRunning, timeLeft });
     });
 
-    // Clean up on disconnect.
-    socket.on("disconnect", () => {
-      console.log("Client disconnected:", socket.id);
+    // Event for the teacher to pause the timer
+    socket.on('pauseTimer', ({ sessionCode, timeLeft }) => {
+        console.log(`Teacher in session ${sessionCode} paused timer. Time left: ${timeLeft}`);
+        if (activeTimers[sessionCode]) {
+            activeTimers[sessionCode].isRunning = false;
+            activeTimers[sessionCode].timeLeft = timeLeft;
+        }
+        io.to(sessionCode).emit('timerUpdate', { isRunning: false, timeLeft });
     });
-  });
 
-  return io;
-}
+    // Event for the teacher to reset the timer
+    socket.on('resetTimer', (sessionCode) => {
+        console.log(`Teacher in session ${sessionCode} reset timer.`);
+        delete activeTimers[sessionCode];
+        io.to(sessionCode).emit('timerReset', { isRunning: false, timeLeft: 0 });
+    });
+    // --- End of Timer Event Listeners to be moved ---
 
-module.exports = attachTimer;
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+    });
+});
+
+
+module.exports = activeTimers;
