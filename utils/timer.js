@@ -1,18 +1,21 @@
-const socketIo = require("socket.io");
-require("dotenv").config();
+// socketHandlers/timer.js
 
-// Store active timers per sessionCode in memory
-// NOTE: This data will be lost if the server restarts.
-const activeTimers = {}; // Keep this here for now, or move to timer.js
+// No need for socketIo = require("socket.io") or require("dotenv") here.
+// These are handled in server.js.
 
-io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+// In-memory store for active timers per sessionCode
+const activeTimers = {};
 
-    socket.on('joinSession', (sessionCode) => {
-        socket.join(sessionCode);
-        console.log(`User ${socket.id} joined session room: ${sessionCode}`);
+// This module will export a function that takes the `io` instance as an argument.
+module.exports = (io) => {
+    /**
+     * Handles Socket.IO timer-related events.
+     * @param {Socket} socket The client socket.
+     * @param {string} sessionCode The session code the client is part of.
+     */
+    const handleTimerEvents = (socket, sessionCode) => {
 
-        // Handle initial timer state sync
+        // When a client joins, send them the current timer state for their session
         if (activeTimers[sessionCode]) {
             let currentActualTimeLeft = activeTimers[sessionCode].timeLeft;
             if (activeTimers[sessionCode].isRunning) {
@@ -23,48 +26,53 @@ io.on('connection', (socket) => {
                 isRunning: activeTimers[sessionCode].isRunning && currentActualTimeLeft > 0,
                 timeLeft: currentActualTimeLeft
             });
+            console.log(`Sent existing timer state for ${sessionCode}: ${currentActualTimeLeft} to ${socket.id}`);
         } else {
             socket.emit('timerUpdate', { isRunning: false, timeLeft: 0 });
+            console.log(`No existing timer found for ${sessionCode}. Sent default state to ${socket.id}.`);
         }
 
-        // <-- NEW: Call the objective handler for this socket/session
-        handleObjectiveEvents(socket, sessionCode);
 
-        // Call the timer handler for this socket/session
-        // (You would uncomment this when you create timer.js)
-        // handleTimerEvents(socket, sessionCode);
-    });
+        // Event for the teacher to start/update the timer
+        socket.on('startTimer', ({ sessionCode: incomingSessionCode, isRunning, timeLeft }) => {
+            if (incomingSessionCode === sessionCode) {
+                console.log(`Teacher in session ${sessionCode} started/updated timer:`, { isRunning, timeLeft });
+                activeTimers[sessionCode] = { isRunning, timeLeft, startTime: Date.now() };
+                io.to(sessionCode).emit('timerUpdate', { isRunning, timeLeft });
+            } else {
+                console.warn(`Attempt to start timer for mismatching session: ${incomingSessionCode} by socket in ${sessionCode}`);
+            }
+        });
 
-    // --- Timer Event Listeners (Temporarily still here, will move to timer.js) ---
-    // Event for the teacher to start/update the timer
-    socket.on('startTimer', ({ sessionCode, isRunning, timeLeft }) => {
-        console.log(`Teacher in session ${sessionCode} started/updated timer:`, { isRunning, timeLeft });
-        activeTimers[sessionCode] = { isRunning, timeLeft, startTime: Date.now() };
-        io.to(sessionCode).emit('timerUpdate', { isRunning, timeLeft });
-    });
+        // Event for the teacher to pause the timer
+        socket.on('pauseTimer', ({ sessionCode: incomingSessionCode, timeLeft }) => {
+            if (incomingSessionCode === sessionCode) {
+                console.log(`Teacher in session ${sessionCode} paused timer. Time left: ${timeLeft}`);
+                if (activeTimers[sessionCode]) {
+                    activeTimers[sessionCode].isRunning = false;
+                    activeTimers[sessionCode].timeLeft = timeLeft;
+                }
+                io.to(sessionCode).emit('timerUpdate', { isRunning: false, timeLeft });
+            } else {
+                console.warn(`Attempt to pause timer for mismatching session: ${incomingSessionCode} by socket in ${sessionCode}`);
+            }
+        });
 
-    // Event for the teacher to pause the timer
-    socket.on('pauseTimer', ({ sessionCode, timeLeft }) => {
-        console.log(`Teacher in session ${sessionCode} paused timer. Time left: ${timeLeft}`);
-        if (activeTimers[sessionCode]) {
-            activeTimers[sessionCode].isRunning = false;
-            activeTimers[sessionCode].timeLeft = timeLeft;
-        }
-        io.to(sessionCode).emit('timerUpdate', { isRunning: false, timeLeft });
-    });
+        // Event for the teacher to reset the timer
+        socket.on('resetTimer', (incomingSessionCode) => {
+            if (incomingSessionCode === sessionCode) {
+                console.log(`Teacher in session ${sessionCode} reset timer.`);
+                delete activeTimers[sessionCode];
+                io.to(sessionCode).emit('timerReset', { isRunning: false, timeLeft: 0 });
+            } else {
+                console.warn(`Attempt to reset timer for mismatching session: ${incomingSessionCode} by socket in ${sessionCode}`);
+            }
+        });
 
-    // Event for the teacher to reset the timer
-    socket.on('resetTimer', (sessionCode) => {
-        console.log(`Teacher in session ${sessionCode} reset timer.`);
-        delete activeTimers[sessionCode];
-        io.to(sessionCode).emit('timerReset', { isRunning: false, timeLeft: 0 });
-    });
-    // --- End of Timer Event Listeners to be moved ---
+        // No need for a disconnect listener here unless there's timer-specific cleanup on disconnect
+        // (e.g., if a teacher's disconnect should clear a specific timer, which is often session-based anyway).
+    };
 
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-    });
-});
-
-
-module.exports = activeTimers;
+    // Export the handler function and potentially the activeTimers object if you need it elsewhere (unlikely)
+    return { handleTimerEvents, activeTimers };
+};
