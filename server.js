@@ -1,10 +1,19 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const cors = require('cors');
-
-const app = express();
+require("dotenv").config();
+const express = require("express");
+const socketIo = require("socket.io");
+const app = express(); // <--- Add this line
+const connectDB = require("./config/db");
+const cors = require("cors");
+const session = require("express-session");
+const MongoStore = require("connect-mongo");
+const passport = require("passport");
+const http = require("http");
 const server = http.createServer(app);
+
+app.get('/', (req, res) => {
+  res.send('<h1>Hello world</h1>');
+});
+
 
 const io = socketIo(server, {
     cors: {
@@ -73,6 +82,39 @@ io.on('connection', (socket) => {
     });
 });
 
+
+// Connect to MongoDB
+connectDB();
+
+// Configure express-session middleware
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "SOME_SECRET",
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: process.env.MONGO_URI,
+      collectionName: "sessions",
+    }),
+  })
+);
+
+// Initialize Passport middleware
+app.use(passport.initialize());
+app.use(passport.session());
+
+
+// Now that the app is fully initialized, mount your route modules.
+const authRoutes = require("./routes/authRoutes");
+const sessionRoutes = require("./routes/generateSessionCode");
+app.use("/auth", authRoutes);
+app.use("/session", sessionRoutes);
+
+
+
 server.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
 });
+
+
+
