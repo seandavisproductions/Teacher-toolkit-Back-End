@@ -1,5 +1,5 @@
 require("dotenv").config();
-const socketIo = require("socket.io")(3000);
+const socketIo = require("socket.io")(10000);
 
 /**
  * Attaches Socket.IO for timer functionality to the provided HTTP server.
