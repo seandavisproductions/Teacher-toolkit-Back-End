@@ -22,7 +22,7 @@ const cors = require("cors");
 // --- Socket.IO Handler Imports ---
 // IMPORTANT: Ensure these paths match your actual file structure
 const timerSocketHandler = require('./utils/timer');         // Timer.js is in 'utils'
-const subtitleSocketHandler = require('./utils/subtitle');  // <-- UPDATED: Subtitle.js is now in 'utils'
+const subtitleSocketHandler = require('./utils/subtitles');  // <-- UPDATED: Subtitle.js is now in 'utils'
 const objectiveSocketHandler = require('./utils/objective');  // Assuming objective.js is in 'utils'
 
 // --- Express Middleware Setup ---
