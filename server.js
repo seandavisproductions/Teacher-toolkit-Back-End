@@ -5,7 +5,7 @@ require("dotenv").config();
 
 // Core Node.js and Express imports
 const express = require("express");
-const http = require = require("http"); // Required for Socket.IO to attach to the server
+const http = require("http");
 const socketIo = require("socket.io");
 const app = express();
 const server = http.createServer(app); // Create HTTP server from Express app
