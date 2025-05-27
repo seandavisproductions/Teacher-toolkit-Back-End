@@ -5,6 +5,7 @@ const app = express(); // <--- Add this line
 const connectDB = require("./config/db");
 const cors = require("cors");
 const session = require("express-session");
+const MongoStore = require("connect-mongo");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const { attachTimer } = require("./utils/timer"); // Import timer functions
@@ -35,7 +36,6 @@ io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 });
 
-
 // Connect to MongoDB
 connectDB();
 
@@ -48,6 +48,10 @@ app.use(
     secret: process.env.SESSION_SECRET || "SOME_SECRET",
     resave: false,
     saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: process.env.MONGO_URI,
+      collectionName: "sessions",
+    }),
   })
 );
 
