@@ -1,111 +1,78 @@
-require("dotenv").config();
-const express = require("express");
-const socketIo = require("socket.io");
-const app = express(); // <--- Add this line
-const connectDB = require("./config/db");
-const cors = require("cors");
-const session = require("express-session");
-const MongoStore = require("connect-mongo");
-const passport = require("passport");
-const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const { attachTimer } = require("./utils/timer"); // Import timer functions
-const { protect } = require("./middleware/authMiddleware");
-const http = require("http");
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+const cors = require('cors');
+
+const app = express();
 const server = http.createServer(app);
 
-
-// Setup middleware
-app.use(express.json());
-app.use(
-  cors( { 
-    origin: ['https://seandavisproductions.github.io', 'http://localhost:3000/teacher-tools', 'https://admin.socket.io', 'https://teacher-toolkit-back-end.onrender.com', 'https://seandavisproductions.github.io/teacher-tools', 'http://localhost:3000'],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"], 
-  }));
-
-
-// Set up Socket.IO with CORS allowed for frontend
 const io = socketIo(server, {
-  cors: {
-    origin: "https://seandavisproductions.github.io",  // Allow requests from your frontend
-    methods: ["GET", "POST"],
-  },
-});
-
-io.on("connection", (socket) => {
-  console.log("Client connected:", socket.id);
-});
-
-// Connect to MongoDB
-connectDB();
-
-
-
-
-// Configure express-session middleware
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "SOME_SECRET",
-    resave: false,
-    saveUninitialized: false,
-    store: MongoStore.create({
-      mongoUrl: process.env.MONGO_URI,
-      collectionName: "sessions",
-    }),
-  })
-);
-
-// Initialize Passport middleware
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Configure Passport with Google Strategy
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID, // your Google client ID
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET, // your Google client secret
-      callbackURL:
-        process.env.GOOGLE_CALLBACK_URL || "http://localhost:5000/auth/google/callback",
-    },
-    async (accessToken, refreshToken, profile, done) => {
-      // Look up or create a user in the database here.
-      return done(null, profile);
+    cors: {
+        origin: 'https://seandavisproductions.github.io', // Your frontend URL
+        methods: ['GET', 'POST'],
+        credentials: true
     }
-  )
-);
-
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-passport.deserializeUser((id, done) => {
-  // Retrieve the user from your database in production.
-  done(null, { id });
 });
 
-// Now that the app is fully initialized, mount your route modules.
-const authRoutes = require("./routes/authRoutes");
-const sessionRoutes = require("./routes/generateSessionCode");
-app.use("/auth", authRoutes);
-app.use("/session", sessionRoutes);
+app.use(cors());
 
-// Define OAuth routes (ensure these handlers are proper functions)
-app.get(
-  "/auth/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
-);
-app.get(
-  "/auth/google/callback",
-  passport.authenticate("google", { failureRedirect: "/login" }),
-  (req, res) => {
-    res.redirect("https://seandavisproductions.github.io/teacher-tools/");
-  }
-);
+const PORT = process.env.PORT || 3001;
 
+// Store active timers per sessionCode
+const activeTimers = {};
 
-// (Socket.IO handlers and additional functionality go here)
+io.on('connection', (socket) => {
+    console.log('A user connected:', socket.id);
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () =>
-  console.log(`🚀 Server running on port ${PORT} with WebSockets!`)
-);
+    socket.on('joinSession', (sessionCode) => {
+        socket.join(sessionCode);
+        console.log(`User ${socket.id} joined session room: ${sessionCode}`);
+
+        // If a timer is already running for this session, send its current state
+        if (activeTimers[sessionCode]) {
+            socket.emit('timerUpdate', activeTimers[sessionCode]);
+        }
+    });
+
+    // Event for the teacher to start/update the timer
+    socket.on('startTimer', ({ sessionCode, isRunning, timeLeft }) => {
+        console.log(`Teacher in session ${sessionCode} started/updated timer:`, { isRunning, timeLeft });
+
+        activeTimers[sessionCode] = { isRunning, timeLeft, startTime: Date.now() };
+
+        // Emit the timer state to all clients in that session room
+        io.to(sessionCode).emit('timerUpdate', activeTimers[sessionCode]);
+    });
+
+    // Event for the teacher to pause the timer
+    socket.on('pauseTimer', ({ sessionCode, timeLeft }) => {
+        console.log(`Teacher in session ${sessionCode} paused timer. Time left: ${timeLeft}`);
+
+        if (activeTimers[sessionCode]) {
+            activeTimers[sessionCode].isRunning = false;
+            activeTimers[sessionCode].timeLeft = timeLeft;
+            // No need for 'pausedAt' if we're just syncing timeLeft directly
+        }
+
+        // Emit the paused timer state to all clients in that session room
+        io.to(sessionCode).emit('timerUpdate', activeTimers[sessionCode]);
+    });
+
+    // Event for the teacher to reset the timer
+    socket.on('resetTimer', (sessionCode) => {
+        console.log(`Teacher in session ${sessionCode} reset timer.`);
+
+        delete activeTimers[sessionCode]; // Remove the timer for this session
+
+        // Emit a reset state to all clients in that session room
+        io.to(sessionCode).emit('timerReset', { isRunning: false, timeLeft: 0 });
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+    });
+});
+
+server.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
+});
