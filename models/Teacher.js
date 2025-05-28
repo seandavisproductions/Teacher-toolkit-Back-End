@@ -1,7 +1,7 @@
 // models/Teacher.js
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
-const crypto = require("crypto"); // For reset tokens
+const crypto = require("crypto");
 
 const TeacherSchema = new mongoose.Schema({
   email: {
@@ -14,34 +14,39 @@ const TeacherSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    // Password is not required if googleId is present (for Google-only sign-ups)
     required: function() { return !this.googleId; },
     minlength: [6, "Password must be at least 6 characters long"],
-    select: false, // Don't return password by default in queries
+    select: false,
   },
-  googleId: { // <-- NEW FIELD
+  googleId: {
     type: String,
     unique: true,
-    sparse: true, // Allows multiple documents to have a null value for googleId
-    select: false, // Don't return googleId by default in queries
+    sparse: true,
+    select: false,
   },
   isVerified: {
     type: Boolean,
     default: false,
   },
-  verificationToken: String, // Stored as hashed token
-  resetPasswordToken: String, // Stored as hashed token
+  verificationToken: String,
+  resetPasswordToken: String,
   resetPasswordExpires: Date,
-  // Add other fields as needed, e.g., name, avatar, etc.
-  name: { // Assuming Google provides a name
+  name: {
     type: String,
     trim: true
+  },
+  // --- NEW FIELD FOR SESSION CODE ---
+  currentSessionCode: {
+    type: String,
+    unique: true, // Ensure each active session code is unique across all teachers
+    sparse: true, // Allows multiple teachers to have a null/undefined sessionCode
+    maxLength: 6, // E.g., a 6-character code
+    minlength: 6 // Ensure it's exactly 6 characters
   },
 }, { timestamps: true });
 
 // Hash password before saving
 TeacherSchema.pre("save", async function (next) {
-  // Only hash the password if it's new or has been modified and is actually set
   if (!this.isModified("password") || !this.password) {
     return next();
   }
@@ -57,21 +62,14 @@ TeacherSchema.methods.comparePassword = async function (enteredPassword) {
 
 // Generate and hash password reset token (reused for email verification token)
 TeacherSchema.methods.getResetPasswordToken = function () {
-  // Generate token (random bytes)
   const resetToken = crypto.randomBytes(20).toString("hex");
-
-  // Hash token and set to resetPasswordToken field (or verificationToken field)
   this.resetPasswordToken = crypto
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
-
-  // Set expire
   this.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
-
-  return resetToken; // Return the unhashed token to the user/for email
+  return resetToken;
 };
-
 
 const Teacher = mongoose.model("Teacher", TeacherSchema);
 

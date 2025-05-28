@@ -6,10 +6,45 @@ const { OAuth2Client } = require('google-auth-library');
 const { sendVerificationEmail, sendPasswordResetEmail } = require("../utils/emailService");
 
 // Initialize Google OAuth2Client with your backend's Google Client ID
-// IMPORTANT: Make sure GOOGLE_CLIENT_ID is set in your backend's .env file on Render
 console.log('Backend Init: Initializing OAuth2Client.');
 console.log('Backend Init: GOOGLE_CLIENT_ID for OAuth2Client:', process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET');
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// --- NEW HELPER FUNCTIONS FOR SESSION CODE ---
+const generateRandomCode = () => {
+    // Generates a random 6-character alphanumeric string
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+};
+
+const findOrCreateTeacherSessionCode = async (teacher) => {
+    if (teacher.currentSessionCode) {
+        console.log(`Teacher ${teacher._id} already has a session code: ${teacher.currentSessionCode}`);
+        return teacher.currentSessionCode;
+    }
+
+    let code;
+    let isUnique = false;
+    console.log(`Generating new unique session code for teacher ${teacher._id}...`);
+    while (!isUnique) {
+        code = generateRandomCode();
+        // Check if this generated code is already active for ANY other teacher
+        const existingTeacherWithCode = await Teacher.findOne({ currentSessionCode: code });
+        if (!existingTeacherWithCode) {
+            isUnique = true;
+        } else {
+            console.log(`Generated code ${code} is not unique, trying again.`);
+        }
+    }
+
+    teacher.currentSessionCode = code;
+    // Use { validateBeforeSave: false } because we're just adding a session code,
+    // not touching password or other schema-validated fields that might be empty.
+    await teacher.save({ validateBeforeSave: false }); 
+    console.log(`Assigned new session code ${code} to teacher ${teacher._id}`);
+    return code;
+};
+// --- END NEW HELPER FUNCTIONS ---
+
 
 // Register a teacher
 const register = async (req, res) => {
@@ -71,13 +106,16 @@ const login = async (req, res) => {
             { expiresIn: "1h" }
         );
 
+        // --- Use the session code helper ---
+        const sessionCode = await findOrCreateTeacherSessionCode(teacher);
+
         res.status(200).json({
             success: true,
             message: "Logged in successfully!",
             token,
             userId: teacher._id,
             email: teacher.email,
-            sessionCode: 'default_session_code'
+            sessionCode: sessionCode // Return the actual dynamic code
         });
 
     } catch (error) {
@@ -86,40 +124,37 @@ const login = async (req, res) => {
     }
 };
 
-// --- NEW FUNCTION: Google Login/Registration ---
+// Google Login/Registration
 const googleLogin = async (req, res) => {
-    console.log('*** googleLogin function started ***'); // ENTRY POINT LOG
+    console.log('*** googleLogin function started ***');
     
-    // FIX IS HERE: Directly destructure 'idToken' from req.body
     const { idToken } = req.body; 
 
-    console.log('Request body received for Google Login:', req.body); // Log entire incoming body
-    console.log('Received idToken (first 50 chars):', idToken ? idToken.substring(0, 50) + '...' : 'ID TOKEN IS MISSING/UNDEFINED - THIS SHOULD NOW NOT HAPPEN!'); // This log should now show the ID token
+    console.log('Request body received for Google Login:', req.body); 
+    console.log('Received idToken (first 50 chars):', idToken ? idToken.substring(0, 50) + '...' : 'ID TOKEN IS MISSING/UNDEFINED - THIS SHOULD NOW NOT HAPPEN!'); 
 
-    if (!idToken) { // This check will now correctly identify if idToken is truly missing.
-        console.warn('googleLogin: No ID token received. Returning 400.'); // Log missing token
+    if (!idToken) { 
+        console.warn('googleLogin: No ID token received. Returning 400.'); 
         return res.status(400).json({ success: false, message: 'Google ID token is required.' });
     }
 
     try {
         console.log('Attempting to verify ID token with Google...');
-        console.log('Using GOOGLE_CLIENT_ID for audience:', process.env.GOOGLE_CLIENT_ID ? 'Set' : 'NOT SET'); // Double-check audience ID env var
+        console.log('Using GOOGLE_CLIENT_ID for audience:', process.env.GOOGLE_CLIENT_ID ? 'Set' : 'NOT SET'); 
 
-        // 1. Verify the ID token with Google
         const ticket = await client.verifyIdToken({
             idToken: idToken,
-            audience: process.env.GOOGLE_CLIENT_ID, // Use the same client ID that generated the token
+            audience: process.env.GOOGLE_CLIENT_ID, 
         });
         console.log('ID token verified successfully with Google.');
 
         const payload = ticket.getPayload();
-        console.log('Payload extracted from Google ticket:', payload); // Log the entire payload
+        console.log('Payload extracted from Google ticket:', payload); 
         const { sub: googleId, email, name } = payload;
 
         console.log(`Extracted from payload: googleId=${googleId}, email=${email}, name=${name}`);
         console.log('Searching for teacher in database...');
 
-        // 2. Find or Create Teacher in your database
         let teacher = await Teacher.findOne({
             $or: [
                 { googleId: googleId },
@@ -130,14 +165,11 @@ const googleLogin = async (req, res) => {
 
         if (teacher) {
             console.log('Existing teacher found. Checking for updates...');
-            // If they registered with email/password and now log in with Google,
-            // link their Google ID if not already linked.
             if (!teacher.googleId) {
                 teacher.googleId = googleId;
-                await teacher.save({ validateBeforeSave: false }); // No password change, so skip validation
+                await teacher.save({ validateBeforeSave: false }); 
                 console.log('Linked Google ID to existing teacher.');
             }
-            // Ensure email is verified if logging in via Google
             if (!teacher.isVerified) {
                 teacher.isVerified = true;
                 teacher.verificationToken = undefined;
@@ -146,25 +178,24 @@ const googleLogin = async (req, res) => {
             }
 
         } else {
-            // New user via Google
             console.log('New user via Google. Creating new teacher record...');
             teacher = new Teacher({
                 email: email,
                 googleId: googleId,
-                name: name || email, // Use name from Google, fallback to email
-                isVerified: true, // Google accounts are implicitly verified
-                // No password needed for Google-only sign-ups
+                name: name || email, 
+                isVerified: true, 
             });
-            await teacher.save(); // This will not hash a password, as none is provided.
+            await teacher.save(); 
             console.log('New teacher created successfully with ID:', teacher._id);
         }
 
-        // 3. Generate JWT for the authenticated teacher
+        // --- Use the session code helper ---
+        const sessionCode = await findOrCreateTeacherSessionCode(teacher);
+
         console.log('Generating JWT token...');
-        console.log('Using JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'NOT SET'); // Check JWT_SECRET env var
+        console.log('Using JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'NOT SET'); 
 
         if (!process.env.JWT_SECRET) {
-            // This is a critical error if JWT_SECRET is not set
             console.error('CRITICAL ERROR: JWT_SECRET environment variable is not configured!');
             throw new Error('JWT_SECRET environment variable is not configured on the server.');
         }
@@ -176,7 +207,6 @@ const googleLogin = async (req, res) => {
         );
         console.log('JWT token generated successfully.');
 
-        // 4. Send success response with token and user info
         console.log('Sending success response to frontend.');
         res.status(200).json({
             success: true,
@@ -184,11 +214,10 @@ const googleLogin = async (req, res) => {
             token,
             userId: teacher._id,
             email: teacher.email,
-            sessionCode: 'default_session_code'
+            sessionCode: sessionCode // Return the actual dynamic code
         });
 
     } catch (error) {
-        // This catch block will log any errors that occur within the try block
         console.error('*** GOOGLE LOGIN BACKEND ERROR CAUGHT IN TRY/CATCH ***');
         console.error('Error name:', error.name || 'N/A');
         console.error('Error message:', error.message || 'N/A');
@@ -196,13 +225,11 @@ const googleLogin = async (req, res) => {
             console.error('Error stack trace:', error.stack);
         }
 
-        // Specific error handling for invalid Google ID token
         if (error.code === 'ERR_INVALID_ARG_VALUE') {
             console.error('Specific error: Invalid Google ID token or audience mismatch.');
             return res.status(401).json({ success: false, message: 'Invalid Google ID token. Please try again.' });
         }
 
-        // Generic 500 for other unexpected errors
         res.status(500).json({ success: false, message: 'Server error during Google login.' });
     }
 };
