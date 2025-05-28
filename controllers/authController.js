@@ -89,15 +89,14 @@ const login = async (req, res) => {
 // --- NEW FUNCTION: Google Login/Registration ---
 const googleLogin = async (req, res) => {
     console.log('*** googleLogin function started ***'); // ENTRY POINT LOG
-    // In your frontend, the Google OAuth library provides the token as 'credential'.
-    // We're expecting it in req.body.credential here.
-    const { credential } = req.body;
-    const idToken = credential; // Assign credential to idToken for clarity with verifyIdToken
+    
+    // FIX IS HERE: Directly destructure 'idToken' from req.body
+    const { idToken } = req.body; 
 
     console.log('Request body received for Google Login:', req.body); // Log entire incoming body
-    console.log('Received idToken (first 50 chars):', idToken ? idToken.substring(0, 50) + '...' : 'ID TOKEN IS MISSING/UNDEFINED'); // Log a snippet
+    console.log('Received idToken (first 50 chars):', idToken ? idToken.substring(0, 50) + '...' : 'ID TOKEN IS MISSING/UNDEFINED - THIS SHOULD NOW NOT HAPPEN!'); // This log should now show the ID token
 
-    if (!idToken) {
+    if (!idToken) { // This check will now correctly identify if idToken is truly missing.
         console.warn('googleLogin: No ID token received. Returning 400.'); // Log missing token
         return res.status(400).json({ success: false, message: 'Google ID token is required.' });
     }
@@ -329,7 +328,7 @@ const resetPassword = async (req, res) => {
 module.exports = {
     register,
     login,
-    googleLogin, // <-- NEW EXPORT
+    googleLogin,
     verifyEmail,
     forgotPassword,
     resetPassword
