@@ -19,6 +19,17 @@ const passport = require("passport"); // For authentication
 // CORS Middleware
 const cors = require("cors");
 
+// Define allowed origins for both Express and Socket.IO
+// This array should include all potential origins your frontend might connect from.
+const allowedOrigins = [
+  'http://localhost:3000', // For your local development environment
+  'http://127.0.0.1:3000', // Another common localhost address
+  'https://seandavisproductions.github.io', // The root domain for GitHub Pages
+  'https://seandavisproductions.github.io/teacher-tools', // Your specific project page URL
+  // Add your Render backend URL if your frontend also needs to make requests to it directly
+  'https://teacher-toolkit-back-end.onrender.com'
+];
+
 // --- Socket.IO Handler Imports ---
 // IMPORTANT: Ensure these paths match your actual file structure
 const timerSocketHandler = require('./utils/timer');         // Timer.js is in 'utils'
