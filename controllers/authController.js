@@ -1,4 +1,3 @@
-// controllers/authController.js
 const Teacher = require("../models/Teacher");
 const jwt = require("jsonwebtoken");
 const crypto = require('crypto');
@@ -10,25 +9,33 @@ console.log('Backend Init: Initializing OAuth2Client.');
 console.log('Backend Init: GOOGLE_CLIENT_ID for OAuth2Client:', process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET');
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// --- NEW HELPER FUNCTIONS FOR SESSION CODE ---
+// --- HELPER FUNCTIONS FOR SESSION CODE ---
+// Generates a random 6-character alphanumeric string
 const generateRandomCode = () => {
-    // Generates a random 6-character alphanumeric string
     return Math.random().toString(36).substring(2, 8).toUpperCase();
 };
 
-const findOrCreateTeacherSessionCode = async (teacher) => {
-    if (teacher.currentSessionCode) {
+// Finds an existing session code for a teacher or generates a new unique one.
+// If forceNew is true, it always generates a new code.
+const findOrCreateTeacherSessionCode = async (teacher, forceNew = false) => {
+    // If teacher already has a code AND we're not forcing a new one, return the existing code
+    if (teacher.currentSessionCode && !forceNew) {
         console.log(`Teacher ${teacher._id} already has a session code: ${teacher.currentSessionCode}`);
         return teacher.currentSessionCode;
     }
 
     let code;
     let isUnique = false;
-    console.log(`Generating new unique session code for teacher ${teacher._id}...`);
+    console.log(`Generating ${forceNew ? 'NEW' : 'initial'} unique session code for teacher ${teacher._id}...`);
     while (!isUnique) {
         code = generateRandomCode();
         // Check if this generated code is already active for ANY other teacher
-        const existingTeacherWithCode = await Teacher.findOne({ currentSessionCode: code });
+        // We use $ne: teacher._id to allow the same teacher to potentially regenerate the same code
+        // (though highly unlikely with random generation, it prevents false uniqueness errors if they were regenerating their *own* previous code)
+        const existingTeacherWithCode = await Teacher.findOne({ 
+            currentSessionCode: code,
+            _id: { $ne: teacher._id } 
+        });
         if (!existingTeacherWithCode) {
             isUnique = true;
         } else {
@@ -37,13 +44,13 @@ const findOrCreateTeacherSessionCode = async (teacher) => {
     }
 
     teacher.currentSessionCode = code;
-    // Use { validateBeforeSave: false } because we're just adding a session code,
-    // not touching password or other schema-validated fields that might be empty.
+    // Use { validateBeforeSave: false } because we're just adding/updating a session code,
+    // not touching password or other schema-validated fields that might require specific input.
     await teacher.save({ validateBeforeSave: false }); 
     console.log(`Assigned new session code ${code} to teacher ${teacher._id}`);
     return code;
 };
-// --- END NEW HELPER FUNCTIONS ---
+// --- END HELPER FUNCTIONS ---
 
 
 // Register a teacher
@@ -61,14 +68,15 @@ const register = async (req, res) => {
 
         teacher = new Teacher({ email, password });
 
+        // Generate a verification token for email verification
         const verificationToken = teacher.getResetPasswordToken();
-        teacher.verificationToken = teacher.resetPasswordToken;
-        teacher.resetPasswordToken = undefined;
-        teacher.resetPasswordExpires = undefined;
+        teacher.verificationToken = teacher.resetPasswordToken; // Reuse the resetPasswordToken field for verification
+        teacher.resetPasswordToken = undefined; // Clear the reset token field for now
+        teacher.resetPasswordExpires = undefined; // Clear the expiry for now
 
-        await teacher.save();
+        await teacher.save(); // Save the new teacher (password gets hashed by pre-save hook)
 
-        await sendVerificationEmail(teacher.email, verificationToken);
+        await sendVerificationEmail(teacher.email, verificationToken); // Send the verification email
 
         res.status(201).json({
             success: true,
@@ -86,7 +94,7 @@ const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        const teacher = await Teacher.findOne({ email });
+        const teacher = await Teacher.findOne({ email }).select('+password'); // Select password explicitly for comparison
         if (!teacher) {
             return res.status(404).json({ success: false, message: "User not found." });
         }
@@ -100,13 +108,14 @@ const login = async (req, res) => {
             return res.status(401).json({ success: false, message: "Invalid credentials." });
         }
 
+        // Generate JWT token
         const token = jwt.sign(
             { id: teacher._id },
             process.env.JWT_SECRET,
             { expiresIn: "1h" }
         );
 
-        // --- Use the session code helper ---
+        // Get or generate session code for the teacher
         const sessionCode = await findOrCreateTeacherSessionCode(teacher);
 
         res.status(200).json({
@@ -131,7 +140,7 @@ const googleLogin = async (req, res) => {
     const { idToken } = req.body; 
 
     console.log('Request body received for Google Login:', req.body); 
-    console.log('Received idToken (first 50 chars):', idToken ? idToken.substring(0, 50) + '...' : 'ID TOKEN IS MISSING/UNDEFINED - THIS SHOULD NOW NOT HAPPEN!'); 
+    console.log('Received idToken (first 50 chars):', idToken ? idToken.substring(0, 50) + '...' : 'ID TOKEN IS MISSING/UNDEFINED'); 
 
     if (!idToken) { 
         console.warn('googleLogin: No ID token received. Returning 400.'); 
@@ -157,22 +166,24 @@ const googleLogin = async (req, res) => {
 
         let teacher = await Teacher.findOne({
             $or: [
-                { googleId: googleId },
-                { email: email }
+                { googleId: googleId }, // Find by Google ID
+                { email: email }         // Or find by email (to link existing accounts)
             ]
         });
         console.log('Teacher database search complete. Teacher found:', teacher ? 'Yes, ID: ' + teacher._id : 'No, creating new.');
 
         if (teacher) {
             console.log('Existing teacher found. Checking for updates...');
+            // If existing teacher found by email but doesn't have a googleId, link it
             if (!teacher.googleId) {
                 teacher.googleId = googleId;
-                await teacher.save({ validateBeforeSave: false }); 
+                await teacher.save({ validateBeforeSave: false }); // Save without validating password
                 console.log('Linked Google ID to existing teacher.');
             }
+            // If existing teacher is not verified, mark as verified via Google login
             if (!teacher.isVerified) {
                 teacher.isVerified = true;
-                teacher.verificationToken = undefined;
+                teacher.verificationToken = undefined; // Clear verification token
                 await teacher.save({ validateBeforeSave: false });
                 console.log('Existing teacher email marked as verified.');
             }
@@ -182,14 +193,14 @@ const googleLogin = async (req, res) => {
             teacher = new Teacher({
                 email: email,
                 googleId: googleId,
-                name: name || email, 
-                isVerified: true, 
+                name: name || email, // Use name from Google, or email if name is not available
+                isVerified: true, // Google accounts are considered verified
             });
-            await teacher.save(); 
+            await teacher.save(); // Save the new teacher
             console.log('New teacher created successfully with ID:', teacher._id);
         }
 
-        // --- Use the session code helper ---
+        // Get or generate session code for the teacher
         const sessionCode = await findOrCreateTeacherSessionCode(teacher);
 
         console.log('Generating JWT token...');
@@ -200,6 +211,7 @@ const googleLogin = async (req, res) => {
             throw new Error('JWT_SECRET environment variable is not configured on the server.');
         }
 
+        // Generate JWT token
         const token = jwt.sign(
             { id: teacher._id },
             process.env.JWT_SECRET,
@@ -231,6 +243,42 @@ const googleLogin = async (req, res) => {
         }
 
         res.status(500).json({ success: false, message: 'Server error during Google login.' });
+    }
+};
+
+// --- NEW FUNCTION: Generate a New Session Code for a Logged-in Teacher ---
+const generateNewSessionCodeForTeacher = async (req, res) => {
+    console.log('*** generateNewSessionCodeForTeacher function started ***');
+    try {
+        // Assuming your authentication middleware populates req.user with the teacher's ID
+        const teacherId = req.user.id; 
+        console.log(`Request to generate new session code for teacher ID: ${teacherId}`);
+
+        const teacher = await Teacher.findById(teacherId);
+
+        if (!teacher) {
+            console.warn(`Attempted to generate new session code for non-existent teacher ID: ${teacherId}`);
+            return res.status(404).json({ success: false, message: 'Teacher not found.' });
+        }
+
+        // Generate a new unique session code, forcing a new one (by passing 'true')
+        const newSessionCode = await findOrCreateTeacherSessionCode(teacher, true); 
+
+        console.log(`New session code generated for teacher ${teacherId}: ${newSessionCode}`);
+        res.status(200).json({ 
+            success: true, 
+            sessionCode: newSessionCode, 
+            message: 'New session code generated successfully.' 
+        });
+
+    } catch (error) {
+        console.error('*** ERROR IN generateNewSessionCodeForTeacher ***');
+        console.error('Error name:', error.name || 'N/A');
+        console.error('Error message:', error.message || 'N/A');
+        if (error.stack) {
+            console.error('Error stack trace:', error.stack);
+        }
+        res.status(500).json({ success: false, message: 'Server error generating new session code.' });
     }
 };
 
@@ -280,6 +328,7 @@ const forgotPassword = async (req, res) => {
 
         if (!teacher) {
             console.log(`Forgot password requested for non-existent email: ${email}`);
+            // Send a generic success message to prevent email enumeration attacks
             return res.status(200).json({
                 success: true,
                 message: 'If an account with that email exists, a password reset link has been sent to your inbox.'
@@ -287,7 +336,7 @@ const forgotPassword = async (req, res) => {
         }
 
         const resetToken = teacher.getResetPasswordToken();
-        await teacher.save({ validateBeforeSave: false });
+        await teacher.save({ validateBeforeSave: false }); // Save with new token without validating password
 
         const emailResult = await sendPasswordResetEmail(teacher.email, resetToken);
 
@@ -318,6 +367,7 @@ const resetPassword = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Token and new password are required.' });
     }
 
+    // Hash the token received from the user to compare with the stored hashed token
     const hashedToken = crypto
         .createHash('sha256')
         .update(token)
@@ -326,22 +376,23 @@ const resetPassword = async (req, res) => {
     try {
         const teacher = await Teacher.findOne({
             resetPasswordToken: hashedToken,
-            resetPasswordExpires: { $gt: Date.now() }
+            resetPasswordExpires: { $gt: Date.now() } // Check if token is valid and not expired
         });
 
         if (!teacher) {
             return res.status(400).json({ success: false, message: 'Invalid or expired password reset link.' });
         }
 
+        // Basic password strength validation
         if (newPassword.length < 6) {
             return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long.' });
         }
 
-        teacher.password = newPassword;
-        teacher.resetPasswordToken = undefined;
-        teacher.resetPasswordExpires = undefined;
+        teacher.password = newPassword; // Mongoose pre-save hook will hash this
+        teacher.resetPasswordToken = undefined; // Clear token after use
+        teacher.resetPasswordExpires = undefined; // Clear expiry after use
 
-        await teacher.save();
+        await teacher.save(); // Save the teacher with the new hashed password
 
         res.status(200).json({ success: true, message: 'Password reset successfully. You can now log in with your new password.' });
 
@@ -358,5 +409,6 @@ module.exports = {
     googleLogin,
     verifyEmail,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    generateNewSessionCodeForTeacher // Don't forget to export this new function!
 };
