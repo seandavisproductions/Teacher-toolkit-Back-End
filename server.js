@@ -114,16 +114,29 @@ const { handleObjectiveEvents } = objectiveSocketHandler(io);
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
 
-    socket.on('joinSession', (sessionCode) => {
-        if (!sessionCode) {
-            console.warn(`Socket ${socket.id} attempted to join session with no code.`);
-            socket.emit('sessionError', 'No session code provided.');
+        socket.on('joinSession', (sessionCode) => {
+        // --- MODIFIED VALIDATION: Add type checking ---
+        if (typeof sessionCode !== 'string' || !sessionCode.trim()) { // .trim() to handle whitespace-only strings
+            console.error(
+                `[Main Server] CRITICAL ERROR: Socket ${socket.id} attempted to join session with invalid or non-string code. ` +
+                `Received:`, sessionCode, `(Type: ${typeof sessionCode})`
+            );
+            socket.emit('sessionError', 'Invalid session code provided. Please ensure it is a non-empty string.');
+            socket.disconnect(true); // Strongly consider disconnecting clients sending malformed data
             return;
         }
+        // --- END MODIFIED VALIDATION ---
 
+        // Proceed only if sessionCode is a valid string
         socket.join(sessionCode);
-        console.log(`Socket ${socket.id} joined session: ${sessionCode}`);
+        console.log(`[Main Server] Socket ${socket.id} joined session: ${sessionCode}`);
 
+        // Store the sessionCode directly on the socket instance for easier access and validation
+        // within other handlers later. This is good practice.
+        socket.sessionCode = sessionCode;
+
+        // Now, call your individual socket handlers, passing the validated sessionCode string
+        // The `sessionCode` parameter passed here is guaranteed to be a string.
         handleTimerEvents(socket, sessionCode);
         handleSubtitleEvents(socket, sessionCode);
         handleObjectiveEvents(socket, sessionCode);
@@ -131,6 +144,8 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.id}`);
+        // Optional: Implement cleanup logic here if needed, e.g.,
+        // If this was the last socket in a session, you might want to stop/clear the timer.
     });
 
     socket.on('error', (err) => {
