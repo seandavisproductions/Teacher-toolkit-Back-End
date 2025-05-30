@@ -24,7 +24,7 @@ module.exports = (io) => {
                 lastSyncTime: Date.now() // Track last time timer state was truly updated/synced
             };
         } else {
-            console.log(`[TimerHandler] DEBUG: Session timer already exists for ${sessionCode}. Current state:`, JSON.stringify(sessionTimers[sessionCode]));
+            console.log(`[TimerHandler] DEBUG: Current timer state BEFORE processing:`, sessionTimers[sessionCode]);
         }
 
         // When a client joins, send them the current timer state for their session
