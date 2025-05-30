@@ -12,7 +12,9 @@ module.exports = (io) => {
      * @param {string} sessionCode The session code the client is part of.
      */
     const handleTimerEvents = (socket, sessionCode) => {
-
+ // --- ADD THIS LINE FOR DEBUGGING ---
+        console.log(`[TimerHandler] DEBUG: handleTimerEvents called for socket ${socket.id}. sessionCode type: ${typeof sessionCode}, value:`, sessionCode);
+        // --- END DEBUG LINE ---
         // Initialize session timer if it doesn't exist
         if (!sessionTimers[sessionCode]) {
             sessionTimers[sessionCode] = {
