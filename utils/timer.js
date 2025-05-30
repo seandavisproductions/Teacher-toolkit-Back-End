@@ -47,7 +47,7 @@ module.exports = (io) => {
 
             if (incomingSessionCode === sessionCode) {
                 console.log(`[TimerHandler] Received 'startTimer' for session ${sessionCode}: isRunning=${clientIsRunning}, timeLeft=${clientTimeLeft}`);
-                console.log(`[TimerHandler] DEBUG: Current timer state BEFORE processing:`, JSON.stringify(sessionTimers[sessionCode]));
+                console.log(`[TimerHandler] DEBUG: Current timer state BEFORE processing:`, (sessionTimers[sessionCode]));
 
                 const timer = sessionTimers[sessionCode];
 
@@ -112,7 +112,7 @@ module.exports = (io) => {
                     }
 
                 } else { // clientIsRunning is false: Client wants to STOP the timer
-                    console.log(`[TimerHandler] DEBUG: Client wants to STOP. Timer state before stop:`, JSON.stringify(timer));
+                    console.log(`[TimerHandler] DEBUG: Client wants to STOP. Timer state before stop:`, (timer));
                     // The interval was already cleared at the top of the handler.
                     // Recalculate timeLeft for accurate stop, if it was running before this stop command
                     if (timer.isRunning && timer.lastSyncTime) {

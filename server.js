@@ -56,7 +56,7 @@ app.use(cors({
 }));
 
 // Body parser middleware for JSON payloads
-app.use(express.json());
+app.use(express.());
 
 // Connect to MongoDB
 connectDB();
